@@ -568,7 +568,7 @@ func testAccCheckAWSDBOptionGroupOptionSettingsIAMRole(optionGroup *rds.OptionGr
 		}
 
 		settingValue := aws.StringValue(optionGroup.Options[0].OptionSettings[0].Value)
-		iamArnRegExp := regexp.MustCompile(`^arn:aws:iam::\d{12}:role/.+`)
+		iamArnRegExp := regexp.MustCompile(fmt.Sprintf(`^arn:%s:iam::\d{12}:role/.+`, testAccGetPartition()))
 		if !iamArnRegExp.MatchString(settingValue) {
 			return fmt.Errorf("Expected option setting to be a valid IAM role but received %s", settingValue)
 		}
@@ -733,24 +733,26 @@ resource "aws_db_option_group" "bar" {
 
 func testAccAWSDBOptionGroupOptionSettingsIAMRole(r string) string {
 	return fmt.Sprintf(`
+data "aws_partition" "current" {}
+
 data "aws_iam_policy_document" "rds_assume_role" {
   statement {
     actions = ["sts:AssumeRole"]
 
     principals {
       type        = "Service"
-      identifiers = ["rds.amazonaws.com"]
+      identifiers = ["rds.${data.aws_partition.current.dns_suffix}"]
     }
   }
 }
 
 resource "aws_iam_role" "sql_server_backup" {
-  name               = "rds-backup-%s"
+  name               = "rds-backup-%[1]s"
   assume_role_policy = data.aws_iam_policy_document.rds_assume_role.json
 }
 
 resource "aws_db_option_group" "bar" {
-  name                     = "%s"
+  name                     = "%[1]s"
   option_group_description = "Test option group for terraform"
   engine_name              = "sqlserver-ex"
   major_engine_version     = "14.00"
@@ -764,7 +766,7 @@ resource "aws_db_option_group" "bar" {
     }
   }
 }
-`, r, r)
+`, r)
 }
 
 func testAccAWSDBOptionGroupOptionSettings_update(r string) string {
